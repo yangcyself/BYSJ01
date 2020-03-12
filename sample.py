@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from copy import copy
 
 
-def optimize(initState, horizon = 50):
+def optimize(initState, horizon = 5):
     """
         Get a initstate and return the optimal constraint violation
             This serves as the sample function(f) in paper
@@ -23,24 +23,50 @@ def optimize(initState, horizon = 50):
                 x = sys_A @ x + sys_B @ dyn_u[2*i:2*i+2]
             return result
         return returnfunc
+    
+
+    def jacOfTraj(c):
+        def returnfunc(dyn_u):
+            result = np.zeros((horizon,len(dyn_u)))
+            x = initState
+            stateJac = np.zeros((4,len(dyn_u)))
+            for i in range(horizon):
+                # result[i] = c(x)
+                # print("StateJac%d:"%i,stateJac)
+                # print("c grad:", c.grad(x).T)
+                result[i,:] = c.grad(x).T @ stateJac
+                x = sys_A @ x + sys_B @ dyn_u[2*i:2*i+2]
+                stateJac = sys_A @ stateJac
+                stateJac[:,2*i:2*i+2] = sys_B
+            # print("constraint Jacobian",str(result))
+            return result
+        return returnfunc
+
 
     def objective(dyn_u):
-        return np.linalg.norm(dyn_u)
+        # return dyn_u .T @ dyn_u
         # print(-np.min([ np.min(constraintOftTraj(c)(dyn_u)) for c in collisionList]))
-        # return -np.min([ np.min(constraintOftTraj(c)(dyn_u)) for c in collisionList])
+        return -np.min([ np.min(constraintOftTraj(c)(dyn_u)) for c in collisionList])
+    
+    def obj_grad(dyn_u):
+        i = np.argmin([ np.min(constraintOftTraj(c)(dyn_u)) for c in collisionList])
+        j = np.argmin(constraintOftTraj(collisionList[i])(dyn_u))
+        # print(i,j)
+        # print(-jacOfTraj(collisionList[i])(dyn_u)[j,:])
+        return -jacOfTraj(collisionList[i])(dyn_u)[j,:]
+        # return 2 * dyn_u
 
+    # constraints = [{'type':'ineq','fun': constraintOftTraj(c), "jac":jacOfTraj(c) } for c in collisionList]
 
-    constraints = [{'type':'ineq','fun': constraintOftTraj(c)} for c in collisionList]
-
-    # x0 = np.zeros(2*horizon)
-    x0 = np.ones(2*horizon)
+    x0 = np.zeros(2*horizon)
+    # x0 = np.ones(2*horizon)*0.1
     bounds = np.ones((2*horizon,2)) * np.array([[-1,1]])
     options = {"maxiter" : 500, "disp"    : 2}
-    res = minimize(objective, x0, bounds=bounds,options = options,
-                constraints=constraints)
+    res = minimize(objective, x0, bounds=bounds,options = options,jac=obj_grad)
+                # constraints=constraints)
 
     # constraintViolation = np.linalg.norm(np.clip([c['fun'](res.x) for c in constraints],None,0)) 
-    print("solution:",res.x[:10])
+    print("solution:",res.x[:30])
     constraintViolation = -np.min([ np.min(constraintOftTraj(c)(res.x)) for c in collisionList])
     print("constraint violation:", constraintViolation)
     return constraintViolation
@@ -125,8 +151,9 @@ if __name__ == "__main__":
     print("first")
     optimize([1,1,-0.3,-0.3])
 
-    print("second")
-    optimize([1,1,-0.1,-0.1])
+    # print("second")
+    # optimize([1,1,-0.1,-0.1])
+
     # D = np.concatenate([v.reshape(-1,1) for v in np.meshgrid(*[np.linspace(-3,3,10) for i in range(4)])], axis = 1)
     # # print(D)
     # # print(D.shape)

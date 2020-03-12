@@ -39,6 +39,12 @@ class collisionConstraint:
         # print((State[0] - self.x)**2 + (State[1] - self.y)**2 - self.r2)
         return (State[0] - self.x)**2 + (State[1] - self.y)**2 - self.r2
 
+    def grad(self,State):
+        res = np.zeros_like(State)
+        res[0] = 2*(State[0]-self.x)
+        res[1] = 2*(State[1]-self.y)
+        return res
+
 collisionList = [
     collisionConstraint(0,0,1)
 ]
