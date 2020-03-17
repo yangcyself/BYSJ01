@@ -9,11 +9,17 @@ import matplotlib.pyplot as plt
 from copy import copy
 from  util.visulization import plotAction
 
-def optimize(initState, horizon = 50):
+
+MAX_INPUT = 10
+HORIZON = 20
+THRESHOULD = 0
+
+def optimize(initState, horizon = HORIZON):
     """
         Get a initstate and return the optimal constraint violation
             This serves as the sample function(f) in paper
     """
+    initState = np.array(initState).astype(np.double)
     def constraintOftTraj(c):
         def returnfunc(dyn_u):
             result = np.zeros(horizon)
@@ -21,6 +27,7 @@ def optimize(initState, horizon = 50):
             for i in range(horizon):
                 result[i] = c(x)
                 x = sys_A @ x + sys_B @ dyn_u[2*i:2*i+2]
+                # print(x)
             return result
         return returnfunc
     
@@ -46,30 +53,50 @@ def optimize(initState, horizon = 50):
     def objective(dyn_u):
         # return dyn_u .T @ dyn_u
         # print(-np.min([ np.min(constraintOftTraj(c)(dyn_u)) for c in collisionList]))
-        return -np.min([ np.min(constraintOftTraj(c)(dyn_u)) for c in collisionList])
+        # print("argmax", np.argmax(constraintOftTraj(collisionList[0])(dyn_u)))
+        # print(constraintOftTraj(collisionList[0])(dyn_u))
+
+        # return np.max([ np.max(constraintOftTraj(c)(dyn_u)) for c in collisionList])
+
+        # return the distance that bigger than 0 firstly
+        distance = constraintOftTraj(collisionList[0])(dyn_u)
+        badset = np.where(distance>THRESHOULD)
+        ind = badset[0][0] if len(badset[0]) else np.argmax(distance)
+        print("ind:",ind)
+        # print("ind:" ,ind)
+        # ind = np.argmax(distance)
+        return distance[ind]
 
 
     def obj_grad(dyn_u):
-        i = np.argmin([ np.min(constraintOftTraj(c)(dyn_u)) for c in collisionList])
-        j = np.argmin(constraintOftTraj(collisionList[i])(dyn_u))
+        # i = np.argmax([ np.max(constraintOftTraj(c)(dyn_u)) for c in collisionList])
+        # j = np.argmax(constraintOftTraj(collisionList[i])(dyn_u))
         # print(i,j)
         # print(-jacOfTraj(collisionList[i])(dyn_u)[j,:])
-        return -jacOfTraj(collisionList[i])(dyn_u)[j,:]
+
+        # return the distance that bigger than 0 firstly
+        distance = constraintOftTraj(collisionList[0])(dyn_u)
+        badset = np.where(distance>THRESHOULD)
+        ind = badset[0][0] if len(badset[0]) else np.argmax(distance)
+        # ind = np.argmax(distance)
+        return jacOfTraj(collisionList[0])(dyn_u)[ind,:]
         # return 2 * dyn_u
 
-    constraints = [{'type':'ineq','fun': constraintOftTraj(c), "jac":jacOfTraj(c) } for c in collisionList]
+    # constraints = [{'type':'ineq','fun': constraintOftTraj(c), "jac":jacOfTraj(c) } for c in collisionList]
 
-    x0 = np.zeros(2*horizon)
+    # x0 = np.zeros(2*horizon)
     # x0 = np.ones(2*horizon)
-    bounds = np.ones((2*horizon,2)) * np.array([[-1,1]]) * 10
-    options = {"maxiter" : 500, "disp"    : False}
-    res = minimize(objective, x0, bounds=bounds,options = options,jac=obj_grad,#)
-                constraints=constraints)
+    x0 = np.random.random(2*horizon)
+    # x0 = np.tile([1,-1],horizon) * 20
+    bounds = np.ones((2*horizon,2)) * np.array([[-1,1]]) * MAX_INPUT
+    options = {"maxiter" : 500, "disp"    : True}
+    res = minimize(objective, x0, bounds=bounds,options = options,jac=obj_grad)
+                # constraints=constraints)
 
     # constraintViolation = np.linalg.norm(np.clip([c['fun'](res.x) for c in constraints],None,0)) 
     print('\n initState:',initState)
     print("solution:",res.x)
-    constraintViolation = -np.min([ np.min(constraintOftTraj(c)(res.x)) for c in collisionList])
+    constraintViolation = objective(res.x)
     print("constraint violation:", constraintViolation)
     plotAction(initState,res.x)
     return constraintViolation
@@ -164,7 +191,7 @@ if __name__ == "__main__":
     # optimize([1,1,-0.3,-0.3])
     # optimize([1,1,-0.3,-0.3])
     # optimize([0.33333333,  0.33333333, -1.66666667,  3. ]) # this yielded nan
-    optimize([3,3,-3,-3])
+    optimize([3,3,-2,-2])
     
 
     # print("second")

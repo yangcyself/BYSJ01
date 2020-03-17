@@ -1,1 +1,5 @@
-__pycache__/problemSetting.cpython-36.pyc
+*.pyc
+*.pdf
+*.ipynb
+runlog.txt
+.vscode/*
