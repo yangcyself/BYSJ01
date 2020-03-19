@@ -13,6 +13,10 @@ import autograd.numpy as np
 import scipy.linalg as linalg
 from autograd import grad, jacobian
 
+MAX_INPUT = 20
+
+sqeuclidean = lambda x: np.inner(x, x) # L2 NORM SQUARE
+
 dt = 0.1
 
 Dyn_A = np.array([[0,0,1,0],

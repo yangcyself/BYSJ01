@@ -10,7 +10,6 @@ from copy import copy
 from  util.visulization import plotAction
 
 
-MAX_INPUT = 10
 HORIZON = 20
 THRESHOULD = 0
 
@@ -20,11 +19,12 @@ def optimize(initState, horizon = HORIZON):
             This serves as the sample function(f) in paper
     """
     initState = np.array(initState).astype(np.double)
+    # print('\n initState:',initState)
     def constraintOftTraj(c):
         def returnfunc(dyn_u):
-            result = np.zeros(horizon)
+            result = np.zeros(len(dyn_u)//2)
             x = initState
-            for i in range(horizon):
+            for i in range(len(dyn_u)//2):
                 result[i] = c(x)
                 x = sys_A @ x + sys_B @ dyn_u[2*i:2*i+2]
                 # print(x)
@@ -34,10 +34,10 @@ def optimize(initState, horizon = HORIZON):
 
     def jacOfTraj(c):
         def returnfunc(dyn_u):
-            result = np.zeros((horizon,len(dyn_u)))
+            result = np.zeros((len(dyn_u)//2,len(dyn_u)))
             x = initState
             stateJac = np.zeros((4,len(dyn_u)))
-            for i in range(horizon):
+            for i in range(len(dyn_u)//2):
                 # result[i] = c(x)
                 # print("StateJac%d:"%i,stateJac)
                 # print("c grad:", c.grad(x).T)
@@ -55,50 +55,37 @@ def optimize(initState, horizon = HORIZON):
         # print(-np.min([ np.min(constraintOftTraj(c)(dyn_u)) for c in collisionList]))
         # print("argmax", np.argmax(constraintOftTraj(collisionList[0])(dyn_u)))
         # print(constraintOftTraj(collisionList[0])(dyn_u))
-
-        # return np.max([ np.max(constraintOftTraj(c)(dyn_u)) for c in collisionList])
-
-        # return the distance that bigger than 0 firstly
-        distance = constraintOftTraj(collisionList[0])(dyn_u)
-        badset = np.where(distance>THRESHOULD)
-        ind = badset[0][0] if len(badset[0]) else np.argmax(distance)
-        print("ind:",ind)
-        # print("ind:" ,ind)
-        # ind = np.argmax(distance)
-        return distance[ind]
+        return np.max([ np.max(constraintOftTraj(c)(dyn_u)) for c in collisionList])
 
 
     def obj_grad(dyn_u):
-        # i = np.argmax([ np.max(constraintOftTraj(c)(dyn_u)) for c in collisionList])
-        # j = np.argmax(constraintOftTraj(collisionList[i])(dyn_u))
-        # print(i,j)
-        # print(-jacOfTraj(collisionList[i])(dyn_u)[j,:])
-
-        # return the distance that bigger than 0 firstly
-        distance = constraintOftTraj(collisionList[0])(dyn_u)
-        badset = np.where(distance>THRESHOULD)
-        ind = badset[0][0] if len(badset[0]) else np.argmax(distance)
-        # ind = np.argmax(distance)
-        return jacOfTraj(collisionList[0])(dyn_u)[ind,:]
-        # return 2 * dyn_u
+        i = np.argmax([ np.max(constraintOftTraj(c)(dyn_u)) for c in collisionList])
+        j = np.argmax(constraintOftTraj(collisionList[i])(dyn_u))
+        return jacOfTraj(collisionList[i])(dyn_u)[j,:]
 
     # constraints = [{'type':'ineq','fun': constraintOftTraj(c), "jac":jacOfTraj(c) } for c in collisionList]
 
     # x0 = np.zeros(2*horizon)
     # x0 = np.ones(2*horizon)
-    x0 = np.random.random(2*horizon)
-    # x0 = np.tile([1,-1],horizon) * 20
-    bounds = np.ones((2*horizon,2)) * np.array([[-1,1]]) * MAX_INPUT
-    options = {"maxiter" : 500, "disp"    : True}
-    res = minimize(objective, x0, bounds=bounds,options = options,jac=obj_grad)
+    x0_whole = np.random.random(2*horizon)
+    sol = np.array([])
+    constraintViolation = 0
+    for h in range(1,horizon):
+        # gradually increase the horizon
+        x0 = x0_whole[:2*h]
+        x0[:len(sol)] = sol
+        bounds = np.ones((2*h,2)) * np.array([[-1,1]]) * MAX_INPUT
+        options = {"maxiter" : 500, "disp"    : False}
+        res = minimize(objective, x0, bounds=bounds,options = options,jac=obj_grad)
                 # constraints=constraints)
 
     # constraintViolation = np.linalg.norm(np.clip([c['fun'](res.x) for c in constraints],None,0)) 
-    print('\n initState:',initState)
-    print("solution:",res.x)
-    constraintViolation = objective(res.x)
-    print("constraint violation:", constraintViolation)
-    plotAction(initState,res.x)
+        # print('\n initState:',initState)
+        # print("solution:",res.x)
+        constraintViolation = objective(res.x)
+        # print("constraint violation:", constraintViolation)
+        # plotAction(initState,res.x)
+    
     return constraintViolation
 
 
@@ -159,6 +146,8 @@ def Level_set_estimation(D, kernel, f, sigma, h, accuracy, max_iter, beta_sqrt =
     while(len(U)):
         xind = np.argmax(Cu - Cl) # select the x to test
         y = f(D[xind])
+        y = np.exp(-y) # to revert from -log(d) in optimization problem to d in Gaussian process
+        print("initState: ",D[xind], "\n f value: ", y)
         Q.addObs(D[xind],y)
         for xi in list(U): # loop over the unclassified points to update region
             mu, s = Q(D[xi])
@@ -168,12 +157,12 @@ def Level_set_estimation(D, kernel, f, sigma, h, accuracy, max_iter, beta_sqrt =
             if(Cl[xi]+accuracy > h):
                 U.remove(xi)
                 H.append(D[xi])
-                print("moved Points:",D[xi], "\n its Cl and Cu:",Cl[xi],Cu[xi])
+                print("moved Points:",D[xi], "\nTo High Set \nits Cl and Cu:",Cl[xi],Cu[xi])
                 Cl[xi] = Cu[xi] = h
             elif(Cu[xi] - accuracy <= h):
                 U.remove(xi)
                 L.append(D[xi])
-                print("moved Points:",D[xi], "\n its Cl and Cu:",Cl[xi],Cu[xi])
+                print("moved Points:",D[xi], "\nTo Low Set \nits Cl and Cu:",Cl[xi],Cu[xi])
                 Cl[xi] = Cu[xi] = h
         iterations += 1
         if(iterations > max_iter):
@@ -191,16 +180,16 @@ if __name__ == "__main__":
     # optimize([1,1,-0.3,-0.3])
     # optimize([1,1,-0.3,-0.3])
     # optimize([0.33333333,  0.33333333, -1.66666667,  3. ]) # this yielded nan
-    optimize([3,3,-2,-2])
+    # print(optimize([2,2,-2,-2]))
     
 
     # print("second")
     # optimize([1,1,-0.1,-0.1])
-    # kernel = lambda x,y: np.exp(-np.linalg.norm(x-y))
-    # D = np.concatenate([v.reshape(-1,1) for v in np.meshgrid(*[np.linspace(-3,3,10) for i in range(4)])], axis = 1)
+    kernel = lambda x,y: np.exp(-np.linalg.norm(x-y))
+    D = np.concatenate([v.reshape(-1,1) for v in np.meshgrid(*[np.linspace(-3,3,10) for i in range(4)])], axis = 1)
     # # print(D)
     # # # print(D.shape)
-    # H,L = Level_set_estimation(D,kernel,optimize,sigma=0.1,h=0,accuracy = 0.1,max_iter=10)
+    H,L = Level_set_estimation(D,kernel,optimize,sigma=0.1,h=0,accuracy = 0.1,max_iter=100)
 
-    # print("H\n",len(H))
-    # print("L\n",len(L))
+    print("H\n",len(H))
+    print("L\n",len(L))
