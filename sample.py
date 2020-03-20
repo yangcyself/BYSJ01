@@ -144,9 +144,9 @@ def Level_set_estimation(D, kernel, f, sigma, h, accuracy, max_iter, beta_sqrt =
     Q = GaussionProcess(kernel,sigma)
     iterations = 0
     while(len(U)):
-        xind = np.argmax(Cu - Cl) # select the x to test
+        xind = np.argmax([min(u-h,h-l) for u,l in zip(Cu,Cl)]) # select the x to test
         y = f(D[xind])
-        y = np.exp(-y) # to revert from -log(d) in optimization problem to d in Gaussian process
+        # y = np.exp(-y) # to revert from -log(d) in optimization problem to d in Gaussian process
         print("initState: ",D[xind], "\n f value: ", y)
         Q.addObs(D[xind],y)
         for xi in list(U): # loop over the unclassified points to update region
@@ -185,11 +185,17 @@ if __name__ == "__main__":
 
     # print("second")
     # optimize([1,1,-0.1,-0.1])
-    kernel = lambda x,y: np.exp(-np.linalg.norm(x-y))
-    D = np.concatenate([v.reshape(-1,1) for v in np.meshgrid(*[np.linspace(-3,3,10) for i in range(4)])], axis = 1)
-    # # print(D)
-    # # # print(D.shape)
-    H,L = Level_set_estimation(D,kernel,optimize,sigma=0.1,h=0,accuracy = 0.1,max_iter=100)
+    # kernel = lambda x,y: np.exp(-10*np.linalg.norm(x-y))
+    # D = np.concatenate([v.reshape(-1,1) for v in np.meshgrid(*[np.linspace(-3,3,10) for i in range(4)])], axis = 1)
+    # # # print(D)
+    # # # # print(D.shape)
+    # H,L = Level_set_estimation(D,kernel,optimize,sigma=0.1,h=0,accuracy = 0.1,max_iter=100)
 
-    print("H\n",len(H))
-    print("L\n",len(L))
+    # print("H\n",len(H))
+    # print("L\n",len(L))
+
+
+    ## Test the sample function in 2D
+    D = np.concatenate([v.reshape(-1,1) for v in np.meshgrid(*[np.linspace(-3,3,100) for i in range(2)])], axis = 1)
+    kernel = lambda x,y: np.exp(-np.linalg.norm(x-y))
+    H,L = Level_set_estimation(D,kernel,lambda x: np.linalg.norm(x)-1,sigma=0.1,h=0,accuracy = 0.1,max_iter=500)

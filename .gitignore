@@ -1,5 +1,5 @@
 *.pyc
 *.pdf
 *.ipynb
-runlog.txt
+runlog*.txt
 .vscode/*
