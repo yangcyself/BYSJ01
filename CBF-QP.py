@@ -6,6 +6,33 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from copy import copy
 
+# class BF:
+#     """
+#         A simple Barrier Function(BF) for making the distance of the position to the origin is larger than _r
+#             h =  x^2 + y^2 - r^2
+#             B = dh + mc * h =  2 * x * vx + 2 * y * vy  +  mc ( x^2 + y^2 - r^2 )
+#         `mc` means gamma
+#     """
+#     def __init__(self, r=1, mc = 1):
+#         self.r2 = r**2
+#         self.mc = mc
+#         self.P = np.array([ [mc, 0, 1, 0],
+#                             [0, mc, 0, 1],
+#                             [1, 0, 0, 0],
+#                             [0, 1, 0, 0],])
+
+#     def __call__(self, state):
+#         return np.array(state).T @ self.P @ np.array(state) - self.r2
+
+#     def dt(self,state,u):
+#         # x^T A^TP x + x^T PA x
+#         # + 
+#         state = np.array(state)
+#         u = np.array(u)
+#         # print("state.T @ Dyn_A.T:", state.T @ Dyn_A.T)
+#         # print("state.T @ (Dyn_A.T @ self.P + self.P @ Dyn_A ) @ state: ",state.T @ (Dyn_A.T @ self.P + self.P @ Dyn_A ) @ state)
+#         return ( state.T @ (Dyn_A.T @ self.P + self.P @ Dyn_A ) @ state + 
+#                  u.T @ Dyn_B.T @ self.P @ state +  state.T @ self.P @ Dyn_B @ u)
 
 
 class BF:
@@ -15,34 +42,32 @@ class BF:
             B = dh + mc * h =  2 * x * vx + 2 * y * vy  +  mc ( x^2 + y^2 - r^2 )
         `mc` means gamma
     """
-    def __init__(self, r=1, mc = 1):
-        self.r2 = r**2
-        self.mc = mc
-        self.P = np.array([ [mc, 0, 1, 0],
-                            [0, mc, 0, 1],
-                            [1, 0, 0, 0],
-                            [0, 1, 0, 0],])
+    def __init__(self, A,b,c):
+        self.A = A
+        self.b = b
+        self.c = c
 
     def __call__(self, state):
-        return np.array(state).T @ self.P @ np.array(state) - self.r2
+        state = np.array(state) 
+        return state.T @ self.A @ state + self.b.T @ state + self.c
 
     def dt(self,state,u):
         # x^T A^TP x + x^T PA x
         # + 
         state = np.array(state)
         u = np.array(u)
-        # print("state.T @ Dyn_A.T:", state.T @ Dyn_A.T)
-        # print("state.T @ (Dyn_A.T @ self.P + self.P @ Dyn_A ) @ state: ",state.T @ (Dyn_A.T @ self.P + self.P @ Dyn_A ) @ state)
-        return ( state.T @ (Dyn_A.T @ self.P + self.P @ Dyn_A ) @ state + 
-                 u.T @ Dyn_B.T @ self.P @ state +  state.T @ self.P @ Dyn_B @ u)
+
+        return (( state.T @ (Dyn_A.T @ self.A + self.A @ Dyn_A ) @ state + 
+                 u.T @ Dyn_B.T @ self.A @ state +  state.T @ self.A @ Dyn_B @ u) +  ## xAx
+                 self.b.T @ (self.A @ state + Dyn_B @ u) ) ## bx
 
 
 class CBF(BF):
     """
         The Control barrier function based on BF, the main difference is that CBF's state is set, u is the only variable
     """
-    def __init__(self, state ,r=1, mc = 1, mc2 = 1):
-        super().__init__(r,mc)
+    def __init__(self, state, A, b, c, mc2 = 1):
+        super().__init__(A,b,c)
         self.state = state
         self.mc2 = mc2
 
@@ -53,7 +78,7 @@ class CBF(BF):
         return jacobian(self.__call__)(u)[:]
 
 
-def CBF_QP(state):
+def CBF_QP(state,*cbfarg):
     """
         a simple QP posed to have a target velocity toward x direction
         input state
@@ -73,7 +98,7 @@ def CBF_QP(state):
         # print("jacobian(objective)(dyn_u)",jacobian(objective)(dyn_u))
         return jacobian(objective)(dyn_u)[:]
 
-    constraints = {'type':'ineq','fun': CBF(state), "jac":CBF(state).grad }
+    constraints = {'type':'ineq','fun': CBF(state,*cbfarg), "jac":CBF(state,*cbfarg).grad }
 
     x0 = np.random.random(2)
     
@@ -84,7 +109,7 @@ def CBF_QP(state):
     return res.x
 
 
-def CBF_QP_simulation(initState, episode = 50):
+def CBF_QP_simulation(initState, episode = 50, *cbfarg):
     """
     The function that calles the CBF_QP given a init condition
     """
@@ -92,7 +117,7 @@ def CBF_QP_simulation(initState, episode = 50):
     us = []
     x = initState
     for i in range(episode):
-        u = CBF_QP(x)
+        u = CBF_QP(x, *cbfarg)
         us.append(u)
         x = sys_A @ x + sys_B @ u
         xs.append(x)
@@ -130,4 +155,10 @@ if __name__ == "__main__":
 
     # print(CBF_QP([-3,0,0,0]))
 
-    CBF_QP_simulation([-3,0.,0,0],episode=50)
+    CBF_QP_simulation([-3,0.,0,0],50, # episode
+       - np.array([[-0.2791679,   0.03790917,  0.04882946,  0.0047728 ],
+        [ 0.03790917, -0.29402434, -0.06213912,  0.02747031],
+        [ 0.04882946, -0.06213912,  0.01178592,  0.06183119],
+        [ 0.0047728,   0.02747031,  0.06183119, -0.01084962]]), # A
+       - np.array([0., 0., 0., 0.]), # b
+       - 1.68321364 ) # c
