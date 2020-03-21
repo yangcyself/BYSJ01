@@ -7,11 +7,14 @@ from problemSetting import *
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from copy import copy
-from  util.visulization import plotAction
-
+from util.visulization import plotAction
+from util.datalogger import DataLogger
+import os
+import pickle as pkl
 
 HORIZON = 20
 THRESHOULD = 0
+# logger: this file takes a `logger` in environment
 
 def optimize(initState, horizon = HORIZON):
     """
@@ -148,6 +151,7 @@ def Level_set_estimation(D, kernel, f, sigma, h, accuracy, max_iter, beta_sqrt =
         y = f(D[xind])
         # y = np.exp(-y) # to revert from -log(d) in optimization problem to d in Gaussian process
         print("initState: ",D[xind], "\n f value: ", y)
+        logger.add(D[xind], y)
         Q.addObs(D[xind],y)
         for xi in list(U): # loop over the unclassified points to update region
             mu, s = Q(D[xi])
@@ -157,11 +161,13 @@ def Level_set_estimation(D, kernel, f, sigma, h, accuracy, max_iter, beta_sqrt =
             if(Cl[xi]+accuracy > h):
                 U.remove(xi)
                 H.append(D[xi])
+                logger.amend(D[xi], "High", (Cl[xi],Cu[xi]))
                 print("moved Points:",D[xi], "\nTo High Set \nits Cl and Cu:",Cl[xi],Cu[xi])
                 Cl[xi] = Cu[xi] = h
             elif(Cu[xi] - accuracy <= h):
                 U.remove(xi)
                 L.append(D[xi])
+                logger.amend(D[xi], "Low", (Cl[xi],Cu[xi]))
                 print("moved Points:",D[xi], "\nTo Low Set \nits Cl and Cu:",Cl[xi],Cu[xi])
                 Cl[xi] = Cu[xi] = h
         iterations += 1
@@ -185,17 +191,16 @@ if __name__ == "__main__":
 
     # print("second")
     # optimize([1,1,-0.1,-0.1])
-    # kernel = lambda x,y: np.exp(-10*np.linalg.norm(x-y))
-    # D = np.concatenate([v.reshape(-1,1) for v in np.meshgrid(*[np.linspace(-3,3,10) for i in range(4)])], axis = 1)
-    # # # print(D)
-    # # # # print(D.shape)
-    # H,L = Level_set_estimation(D,kernel,optimize,sigma=0.1,h=0,accuracy = 0.1,max_iter=100)
+    with DataLogger(name="tmp") as logger:
+        kernel = lambda x,y: np.exp(-np.linalg.norm(x-y))
+        D = np.concatenate([v.reshape(-1,1) for v in np.meshgrid(*[np.linspace(-3,3,20) for i in range(4)])], axis = 1)
+        H,L = Level_set_estimation(D,kernel,optimize,sigma=0.01,h=0,accuracy = 0.1,max_iter=100)
 
-    # print("H\n",len(H))
-    # print("L\n",len(L))
+        print("H\n",len(H))
+        print("L\n",len(L))
 
 
     ## Test the sample function in 2D
-    D = np.concatenate([v.reshape(-1,1) for v in np.meshgrid(*[np.linspace(-3,3,100) for i in range(2)])], axis = 1)
-    kernel = lambda x,y: np.exp(-np.linalg.norm(x-y))
-    H,L = Level_set_estimation(D,kernel,lambda x: np.linalg.norm(x)-1,sigma=0.1,h=0,accuracy = 0.1,max_iter=500)
+    # D = np.concatenate([v.reshape(-1,1) for v in np.meshgrid(*[np.linspace(-3,3,100) for i in range(2)])], axis = 1)
+    # kernel = lambda x,y: np.exp(-np.linalg.norm(x-y))
+    # H,L = Level_set_estimation(D,kernel,lambda x: np.linalg.norm(x)-1,sigma=0.1,h=0,accuracy = 0.1,max_iter=500)
