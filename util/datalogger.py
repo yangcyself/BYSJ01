@@ -19,7 +19,7 @@ class DataLogger:
         if(not self.dumpIterCount):
             self.dump()
             self.dumpIterCount = self.dumpLengh + 1
-            self.dumpFileCoun += 1
+            self.dumpFileCount += 1
             self.toSave = []
         self.dumpIterCount -= 1
 
