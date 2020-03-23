@@ -186,6 +186,7 @@ if __name__ == "__main__":
     # optimize([1,1,-0.3,-0.3])
     # optimize([1,1,-0.3,-0.3])
     # optimize([0.33333333,  0.33333333, -1.66666667,  3. ]) # this yielded nan
+    print(optimize([-0.78947368, -2.36842105,  1.42105263,  3.        ]))
     # print(optimize([2,2,-2,-2]))
     
 
