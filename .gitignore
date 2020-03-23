@@ -4,3 +4,4 @@
 runlog*.txt
 .vscode/*
 *.pkl
+*.json

@@ -49,7 +49,6 @@ class DataLogger:
         
 
 
-
 # @contextmanager
 # def DataLogger(dir = "./data",name = "tmp"):
 #     try:
@@ -57,3 +56,9 @@ class DataLogger:
 #         yield logger
 #     finally:
 #         logger.dump()
+
+if __name__ == "__main__":
+    import json
+    import sys
+    import numpy as np
+    json.dump({"a":[[1,1],[2,2]]}, sys.stdout)

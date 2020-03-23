@@ -5,6 +5,9 @@ from problemSetting import *
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from copy import copy
+import json
+from util.visulization import drawEclips
+
 
 # class BF:
 #     """
@@ -174,14 +177,14 @@ def CBF_QP_simulation(initState, episode = 10, *cbfarg):
                  c.y + np.sqrt(c.r2)*np.sin(np.arange(0,(2+1./N)*3.14,2*3.14/N)), label = 'obstacle')
     # print(us)
     xdes = np.array(xdes)
-    plt.plot(xdes[:,0],xdes[:,1],".", label = 'command traj')
+    ax = plt.gca()
+    ax.plot(xdes[:,0],xdes[:,1],".", label = 'command traj')
     plt.legend()
     lim = max(np.max(traj[:,0])-np.min(traj[:,0]),6, 2*(np.max(traj[:,1])-np.min(traj[:,1])))
     plt.xlim((-3.3,-3.3+lim))
     plt.ylim((-lim/2, lim/2))
     # for i in range(episode):
-        
-    plt.show()
+    return ax
 
 
 
@@ -205,28 +208,23 @@ if __name__ == "__main__":
     # B = CBF([0.5,0.5,0,0])
     # print(B(np.array([-1,-1])))
 
-    # print(CBF_CLF_QP([-2.76,       -0.00285726,  1.,        -0.066193664],
-    #             lambda s:CBF(s,- np.array([[-0.2791679,   0.03790917,  0.04882946,  0.0047728 ],
-    #                                         [ 0.03790917, -0.29402434, -0.06213912,  0.02747031],
-    #                                         [ 0.04882946, -0.06213912,  0.01178592,  0.06183119],
-    #                                         [ 0.0047728,   0.02747031,  0.06183119, -0.01084962]]), # A
-    #                                     - np.array([0., 0., 0., 0.]), # b
-    #                                     - 1.68321364),lambda s:CLF(s,0.6) ))
 
-    # CBF_QP_simulation([-3,0.,0,0],50, # episode
-    #    - np.array([[-0.2791679,   0.03790917,  0.04882946,  0.0047728 ],
-    #     [ 0.03790917, -0.29402434, -0.06213912,  0.02747031],
-    #     [ 0.04882946, -0.06213912,  0.01178592,  0.06183119],
-    #     [ 0.0047728,   0.02747031,  0.06183119, -0.01084962]]), # A
-    #    - np.array([0., 0., 0., 0.]), # b
-    #    - 1.68321364 ) # c
-
+    # Polyparameter = json.load(open("data/exp1/svmopt.json","r"))
+    Polyparameter = json.load(open("data/exp1/svm_def.json","r"))
+    # Polyparameter = json.load(open("data/tmp/svm.json","r"))
+    sign = np.sign(Polyparameter["A"][0][0])
+    A,b,c = sign * np.array(Polyparameter["A"]), sign * np.array(Polyparameter["b"]), sign * np.array(Polyparameter["c"])
+    
     CBF_QP_simulation([-3,0.,0,0],50, # episode
-        np.array([[ -8.54952219,   0.76737099,  -1.83536459,  -0.43622766],
-                  [  0.76737099, -21.39621081,  -1.0793957,   -4.09029031],
-                  [ -1.83536459,  -1.0793957 ,  -0.24424124,  -0.29616764],
-                  [ -0.43622766,  -4.09029031,  -0.29616764,  -1.10482992]]),
-        np.array([0., 0., 0., 0.]), 22.59772982 ) # c
+         A,b,c) # c
+    drawEclips(A,b,c)
+    plt.show()
+
+
+    # print(CBF_CLF_QP([-2.76,       -0.00285726,  1.,    -0.066193664],
+    #             lambda s:CBF(s,A,b,c), lambda s:CLF(s,0.6) ))
+
+
 
     # mc = 0.3
     # CBF_QP_simulation([-3,0.,0,0],50, # episode
