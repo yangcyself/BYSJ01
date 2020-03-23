@@ -82,7 +82,7 @@ class CBF(BF):
 
 
 class CLF:
-    def __init__(self, state, t, mc2 = 50):
+    def __init__(self, state, t, mc2 = 10):
         self.state = np.array(state).astype(np.float)
         self.mc2 = mc2
 
@@ -124,7 +124,7 @@ def CBF_CLF_QP(state, CBFfun, CLFfun):
         # dyn_u = np.array([20,-20])
         # print(list(dyn_u))
         # print("OBJ", Wregularizer * sqeuclidean(dyn_u) + max(0,clf(dyn_u)) **2)
-        return Wregularizer * sqeuclidean(dyn_u) + max(0,clf(dyn_u)) **2
+        return Wregularizer * sqeuclidean(dyn_u) + max(0,clf(dyn_u))
 
 
     def obj_grad(dyn_u):
@@ -134,7 +134,7 @@ def CBF_CLF_QP(state, CBFfun, CLFfun):
         # print(clf.x_des)
         # print("jacobian(objective)(dyn_u)",jacobian(objective)(dyn_u))
         # print("GRAD:", 2 * Wregularizer * dyn_u + 2 * clf.grad(dyn_u) * (clf(dyn_u)>0) )
-        return 2 * Wregularizer * dyn_u + 2 * clf.grad(dyn_u) * (clf(dyn_u)>0) 
+        return 2 * Wregularizer * dyn_u + clf.grad(dyn_u) * (clf(dyn_u)>0) 
 
 
     constraints = {'type':'ineq','fun': cbf, "jac":cbf.grad }
@@ -145,7 +145,8 @@ def CBF_CLF_QP(state, CBFfun, CLFfun):
     bounds = np.ones((2,2)) * np.array([[-1,1]]) * MAX_INPUT
     options = {"maxiter" : 500, "disp"    : True}
     res = minimize(objective, x0, bounds=bounds,options = options,jac=obj_grad,
-                constraints=constraints, method =  'trust-constr') # 'trust-constr' , "SLSQP"
+                constraints=constraints, method =  'SLSQP') # 'trust-constr' , "SLSQP"
+    assert(cbf(res.x)>-1e-9)
     # print(res.x.clip(-MAX_INPUT,MAX_INPUT))
     return res.x.clip(-MAX_INPUT,MAX_INPUT)
 
@@ -189,11 +190,18 @@ def CBF_QP_simulation(initState, episode = 10, *cbfarg):
 
 
 if __name__ == "__main__":
-    # B = BF()
+    # Polyparameter = json.load(open("data/exp1/svmopt.json","r"))
+    Polyparameter = json.load(open("data/exp1/svm_def_aug.json","r"))
+    # Polyparameter = json.load(open("data/exp1/svm.json","r"))
+    # Polyparameter = json.load(open("data/tmp/svm_def.json","r"))
+    sign = np.sign(Polyparameter["A"][0][0])
+    A,b,c = sign * np.array(Polyparameter["A"]), sign * np.array(Polyparameter["b"]), sign * np.array(Polyparameter["c"])
+    
+    # B = BF(A,b,c)
     # print(B([1,1,0,0]))
     # print(B([1,0,0,0]))
     # print(B([1,1,-1,-1]))
-    # print(B([1,1,-0.2,-0.2]))
+    # print(B([ 2.68421053, -0.78947368 ,-3.,          3.  ]))
 
     # print("Test BF dt")
     # print(B.dt([1,1,0,0],[-1,-1]))
@@ -209,31 +217,47 @@ if __name__ == "__main__":
     # print(B(np.array([-1,-1])))
 
 
-    # Polyparameter = json.load(open("data/exp1/svmopt.json","r"))
-    Polyparameter = json.load(open("data/exp1/svm_def.json","r"))
-    # Polyparameter = json.load(open("data/tmp/svm.json","r"))
-    sign = np.sign(Polyparameter["A"][0][0])
-    A,b,c = sign * np.array(Polyparameter["A"]), sign * np.array(Polyparameter["b"]), sign * np.array(Polyparameter["c"])
-    
-    CBF_QP_simulation([-3,0.,0,0],50, # episode
-         A,b,c) # c
-    drawEclips(A,b,c)
-    plt.show()
+    # CBF_QP_simulation([-3,0.,0,0],50, # episode
+    #      A,b,c) # c
+    # drawEclips(A,b,c)
+    # plt.show()
 
+    # print(CBF_CLF_QP([-3,0,0,0],
+    #         lambda s:CBF(s,A,b,c), lambda s:CLF(s,0) ))
 
-    # print(CBF_CLF_QP([-2.76,       -0.00285726,  1.,    -0.066193664],
+    # def func(p):
+    #     p = np.array(p)
+    #     return (p.T @ A @ p + b.T @ p + c)
+
+    # import pickle as pkl
+    # from glob import glob
+    # import os
+    # loaddir = "./data/exp1"
+    # X = []
+    # y = []
+    # for f in glob(os.path.join(loaddir,"*.pkl")):
+    #     print(f)
+    #     data = pkl.load(open(f,"rb"))
+    #     X += [s['testPoint'] for s in data]
+    #     y += [ 1 if (s['fvalue']<0) else -1 for s in data]
+    # posX = np.array([x for x,y in zip(X,y) if y ==1])
+    # for x in posX:
+    #     print(x)
+    #     print(CBF_CLF_QP(x,
     #             lambda s:CBF(s,A,b,c), lambda s:CLF(s,0.6) ))
 
 
 
-    # mc = 0.3
-    # CBF_QP_simulation([-3,0.,0,0],50, # episode
-    #     np.array([[mc,0,1,0],
-    #               [0,mc,0,1],
-    #               [1,0, 0,0 ],
-    #               [0,1, 0,0 ]]), # A
-    #    - np.array([0., 0., 0., 0.]), # b
-    #    - 1 ) # c
+    mc = 10
+    CBF_QP_simulation([-3,0.,0,0],50, # episode
+        np.array([[mc,0,1,0],
+                  [0,mc,0,1],
+                  [1,0, 0,0 ],
+                  [0,1, 0,0 ]]), # A
+       - np.array([0., 0., 0., 0.]), # b
+       - 1 ) # c
+    drawEclips(A,b,c)
+    plt.show()
 
     # c= CLF([-3,0,0,0],0.1)
     # print(c([2,0]))

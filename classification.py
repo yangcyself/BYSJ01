@@ -76,7 +76,7 @@ class kernel:
             Return the A, b, c of x^TAx + b^T x + c
         """
         print("w:",w)
-        A = np.array([[w[min(i,j)*dim - int(min(i,j)*(min(i,j)-1)/2) + max(i,j)]  for j in range(dim)] for i in range(dim)])
+        A = np.array([[w[min(i,j)*dim - int(min(i,j)*(min(i,j)-1)/2) - min(i,j) + max(i,j)]/(1 if(i==j)else 2)  for j in range(dim)] for i in range(dim)])
         b = w[-dim-1:-1]
         c = w[-1]
         return A,b,c
@@ -137,6 +137,7 @@ def fitCBF(X,y,dim = 4):
     options = {"maxiter" : 500, "disp"    : True}
     x0 = np.random.random(int((dim+1)*dim/2 + dim + 1))
     u0 = np.random.random( 2* len(safePoints))
+    # u0 = []
 
     def jacwrapper(func,i=0):
         def retfunc(*args):
@@ -151,10 +152,11 @@ def fitCBF(X,y,dim = 4):
 
     constraints = [{'type':'ineq','fun': lambda x:SVMcons(x[:len(x0)]), 
                                     "jac": lambda x:jacwrapper(SVMjac)(x[:len(x0)])}]
+                                    # "jac": lambda x:SVMjac(x[:len(x0)])}]
     
     for i,p in enumerate(safePoints): 
         constraints.append({'type':'ineq','fun': lambda x: CBFCons(p,x[:len(x0)],x[len(x0)+i*2:len(x0)+i*2+2]), 
-                                    "jac": lambda x:jacwrapper(CBFjac)(p,x[:len(x0)],x[len(x0)+i*2:len(x0)+i*2+2])})
+                                    "jac": lambda x:jacwrapper(CBFjac,i)(p,x[:len(x0)],x[len(x0)+i*2:len(x0)+i*2+2])})
 
     res = minimize(obj, list(x0)+list(u0), options = options,jac=grad,
                 constraints=constraints, method =  'SLSQP') # 'trust-constr' , "SLSQP"
@@ -182,8 +184,9 @@ if __name__ == "__main__":
     # for i in range(10):
     #     test(np.random.random(4))
 
+
+    # ### Begin Comment
     # loaddir = "./data/tmp"
-    ### Begin Comment
     loaddir = "./data/exp1"
     X = []
     y = []
@@ -193,30 +196,30 @@ if __name__ == "__main__":
         X += [s['testPoint'] for s in data]
         y += [ 1 if (s['fvalue']<0) else -1 for s in data]
         # y += [ 1 if (s['fvalue']>0) else -1 for s in data]
-    
+    augmentData = [[np.cos(th),np.sin(th),3*np.cos(th),np.sin(th)] for th in np.arange(0,2*3.14,20)]
+    X += augmentData
+    y += [-1] * len(augmentData)
     # A,b,c = SVM_factors(np.array(X),y)
     A,b,c = fitCBF(X,y)
+    # A,b,c = kernel.GetParam(w,dim=4)
+
     c = float(c)
     print(A,b,c)
-    dumpJson(A,b,c,"data/exp1/svm_def.json")
+    dumpJson(A,b,c,"data/exp1/svm_def_aug.json")
     # dumpJson(A,b,c,"data/tmp/svm_def.json")
     
     def func(p):
         p = np.array(p)
         return (p.T @ A @ p + b.T @ p + c)
 
-
     # # viz
     import matplotlib.pyplot as plt
     posX = np.array([x for x,y in zip(X,y) if y ==1])
-
-    print("PosX value", [func(x) for x in posX])
     assert(all([func(x) > -1e-9 for x in posX]))
     print(posX)
     negX = np.array([x for x,y in zip(X,y) if y ==-1])
     assert(all([func(x) < 1e-9 for x in negX]))
 
-    # # print(posX)
     plt.plot(posX[:,0],posX[:,1], "x", alpha = 0.4, label = "positive points")
     plt.plot(negX[:,0],negX[:,1], "x", alpha = 0.4, label = "negative points")
 
