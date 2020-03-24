@@ -83,10 +83,11 @@ class kernel:
 
 
 
-def fitCBF(X,y,dim = 4):
+def fitCBF(X, y, X_c,dim = 4, x0 = None):
     """
         X: tested datapoints
         y: 1 or -1; 1 means in CBF's upper level set
+        X_c: The datapoints that needs to ensure exits u s.t. dB(x,u) > 0
 
         cast it into an optimization problem, where
         min_{w,b,u}  ||w||+||u||
@@ -112,20 +113,91 @@ def fitCBF(X,y,dim = 4):
         # print(w)
         return y.reshape((-1,1))*X_aug
 
+    # X_c_aug = kernel.augment(X_c) if len(X_c) else []
+
+    def completeCons(w):
+        # the points at the boundary of the CBF needs to have a solution that dB > 0
+        if(len(X_c)):
+            print("w:",w)
+            print("a:",w.T @ kernel.jac(X_c[0]) @ Dyn_A @ X_c[0], MAX_INPUT * np.linalg.norm(Dyn_B.T @ kernel.jac(X_c[0]).T @ w,ord=1))
+        return np.array([1]+[w.T @ kernel.jac(x) @ Dyn_A @ x  +  
+                    MAX_INPUT * np.linalg.norm(Dyn_B.T @ kernel.jac(x).T @ w, ord = 1) for x in X_c])
+
+    if(x0 is not None):
+        x0[-5:-1] *= 0
+        A,b,c = kernel.GetParam(x0)
+        def completeobj(x):
+            print("A: \n",A)
+            print("b:",x.T @ (Dyn_A .T @ A + A @ Dyn_A) @ x, 2 * MAX_INPUT * np.linalg.norm(Dyn_B.T @ A @ x,ord = 1))
+
+            return x.T @ (Dyn_A .T @ A + A @ Dyn_A) @ x + 2 * MAX_INPUT * np.linalg.norm(Dyn_B.T @ A @ x,ord = 1)
+
+        print("OBJ value:" ,[completeobj(x) for x in X_c])
+        print("Con Value:", [completeCons(x0)])
+
     safePoints = np.array([xx for xx, yy in zip(X,y) if yy > 0])
 
     options = {"maxiter" : 500, "disp"    : True}
-    x0 = np.random.random(int((dim+1)*dim/2 + dim + 1))
+    x0 = np.random.random(int((dim+1)*dim/2 + dim + 1)) if x0 is None else x0
     
-    constraints = [{'type':'ineq','fun':SVMcons, 
-                                    "jac":SVMjac}]
+    constraints = [{'type':'ineq','fun':SVMcons, "jac":SVMjac},
+                   {'type':'ineq','fun':completeCons}]
     
-    res = minimize(obj, list(x0), options = options,jac=grad,
+    res = minimize(obj, x0, options = options,jac=grad,
                 constraints=constraints, method =  'SLSQP') # 'trust-constr' , "SLSQP"
 
     # print("SVM Constraint:\n", SVMcons(res.x[:len(x0)]))
+    return (*kernel.GetParam(res.x), res.x)
 
-    return kernel.GetParam(res.x)
+
+def fitCompleteCBF(X,y,dim = 4):
+    """
+        call the `fitCBF` iteratively, each step augment the dataset with some data points 
+            that makes the optimization of u hard
+    """
+    x0 = None
+    X_c = []
+    for i in range(2):
+        A,b,c, x0 = fitCBF(X,y,X_c,dim,x0)
+    
+        def obj(x):
+            return x.T @ (Dyn_A .T @ A + A @ Dyn_A) @ x + 2 * MAX_INPUT * np.linalg.norm(Dyn_B.T @ A @ x,ord = 1)
+
+        def cons(x):
+            return x.T @ A @ x - c
+
+        constraints = {'type':'eq','fun': cons, "jac":jacobian(cons)}
+        
+        bounds = np.ones((4,2)) * np.array([[-1,1]]) * 3
+        
+        X_c = [ minimize(obj, np.random.random(4) * 3, bounds = bounds, #jac=jac, 
+                        constraints=constraints, method =  'SLSQP').x for i in range(1) ]
+        print([obj(x) for x in X_c])
+        # print(X_c)
+    return A,b,c
+
+    # def CBFCons(state,w,u):
+    #     """
+    #         the CBF condition, at the state
+    #         dB(x,u) + mc B(x) > 0
+    #     """
+    #     mc = 1
+    #     # print(w.shape,kernel.augment(state).shape)
+    #     B = kernel.augment(state) @ w
+    #     # print(kernel.jac(state).shape)
+    #     # print((w.T @ kernel.jac(state)).shape)
+    #     # print(Dyn_A @ state)
+    #     # print(Dyn_B @ u)
+    #     # print( (Dyn_A @ state.reshape((-1,1)) + Dyn_B @ u.reshape(-1,1)).shape)
+    #     dB = w.T @ kernel.jac(state) @ (Dyn_A @ state + Dyn_B @ u)
+    #     return dB + mc * B
+
+    # def CBFjac(state,w,u):
+    #     mc = 1
+    #     return (kernel.augment(state) + mc * kernel.jac(state) @ (Dyn_A @ state + Dyn_B @ u), # jac of w
+    #             (mc *  (w.T @ kernel.jac(state) @ Dyn_B ).T).reshape(1,-1) ) # jac of u
+
+
 
 def dumpJson(A,b,c,fileName = "data/tmp/Abc.json"):
     json.dump({"A":A.tolist(),"b":b.tolist(),"c":c},open(fileName,"w"))
@@ -162,12 +234,12 @@ if __name__ == "__main__":
     X += augmentData
     y += [-1] * len(augmentData)
     # A,b,c = SVM_factors(np.array(X),y)
-    A,b,c = fitCBF(X,y)
+    A,b,c = fitCompleteCBF(X,y)
     # A,b,c = kernel.GetParam(w,dim=4)
 
     c = float(c)
     print(A,b,c)
-    dumpJson(A,b,c,"data/exp1/svm.json")
+    dumpJson(A,b,c,"data/exp1/svm_complete.json")
     # dumpJson(A,b,c,"data/exp1/svm_def_aug.json")
     # dumpJson(A,b,c,"data/tmp/svm_def.json")
     
