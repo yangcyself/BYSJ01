@@ -113,58 +113,19 @@ def fitCBF(X,y,dim = 4):
         return y.reshape((-1,1))*X_aug
 
     safePoints = np.array([xx for xx, yy in zip(X,y) if yy > 0])
-    
-    def CBFCons(state,w,u):
-        """
-            the CBF condition, at the state
-            dB(x,u) + mc B(x) > 0
-        """
-        mc = 1
-        # print(w.shape,kernel.augment(state).shape)
-        B = kernel.augment(state) @ w
-        # print(kernel.jac(state).shape)
-        # print((w.T @ kernel.jac(state)).shape)
-        # print(Dyn_A @ state)
-        # print(Dyn_B @ u)
-        # print( (Dyn_A @ state.reshape((-1,1)) + Dyn_B @ u.reshape(-1,1)).shape)
-        dB = w.T @ kernel.jac(state) @ (Dyn_A @ state + Dyn_B @ u)
-        return dB + mc * B
-
-    def CBFjac(state,w,u):
-        mc = 1
-        return (kernel.augment(state) + mc * kernel.jac(state) @ (Dyn_A @ state + Dyn_B @ u), # jac of w
-                (mc *  (w.T @ kernel.jac(state) @ Dyn_B ).T).reshape(1,-1) ) # jac of u
 
     options = {"maxiter" : 500, "disp"    : True}
     x0 = np.random.random(int((dim+1)*dim/2 + dim + 1))
-    u0 = np.random.random( 2* len(safePoints))
-    # u0 = []
-
-    def jacwrapper(func,i=0):
-        def retfunc(*args):
-            res = func(*args)
-            if(type(res)==tuple):
-                ret = np.concatenate([res[0],np.zeros((res[0].shape[0],len(u0)))],axis = 1)
-                ret[:,len(x0)+i*2:len(x0)+i*2+2] = res[1]
-                return ret
-            else:
-                return np.concatenate([res,np.zeros((res.shape[0],len(u0)))],axis = 1)
-        return retfunc
-
-    constraints = [{'type':'ineq','fun': lambda x:SVMcons(x[:len(x0)]), 
-                                    "jac": lambda x:jacwrapper(SVMjac)(x[:len(x0)])}]
-                                    # "jac": lambda x:SVMjac(x[:len(x0)])}]
     
-    for i,p in enumerate(safePoints): 
-        constraints.append({'type':'ineq','fun': lambda x: CBFCons(p,x[:len(x0)],x[len(x0)+i*2:len(x0)+i*2+2]), 
-                                    "jac": lambda x:jacwrapper(CBFjac,i)(p,x[:len(x0)],x[len(x0)+i*2:len(x0)+i*2+2])})
-
-    res = minimize(obj, list(x0)+list(u0), options = options,jac=grad,
+    constraints = [{'type':'ineq','fun':SVMcons, 
+                                    "jac":SVMjac}]
+    
+    res = minimize(obj, list(x0), options = options,jac=grad,
                 constraints=constraints, method =  'SLSQP') # 'trust-constr' , "SLSQP"
 
-    print("SVM Constraint:\n", SVMcons(res.x[:len(x0)]))
+    # print("SVM Constraint:\n", SVMcons(res.x[:len(x0)]))
 
-    return kernel.GetParam(res.x[:len(x0)])
+    return kernel.GetParam(res.x)
 
 def dumpJson(A,b,c,fileName = "data/tmp/Abc.json"):
     json.dump({"A":A.tolist(),"b":b.tolist(),"c":c},open(fileName,"w"))
@@ -206,7 +167,8 @@ if __name__ == "__main__":
 
     c = float(c)
     print(A,b,c)
-    dumpJson(A,b,c,"data/exp1/svm_def_aug.json")
+    dumpJson(A,b,c,"data/exp1/svm.json")
+    # dumpJson(A,b,c,"data/exp1/svm_def_aug.json")
     # dumpJson(A,b,c,"data/tmp/svm_def.json")
     
     def func(p):
@@ -217,7 +179,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     posX = np.array([x for x,y in zip(X,y) if y ==1])
     assert(all([func(x) > -1e-9 for x in posX]))
-    print(posX)
+    # print(posX)
     negX = np.array([x for x,y in zip(X,y) if y ==-1])
     assert(all([func(x) < 1e-9 for x in negX]))
 
