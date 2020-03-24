@@ -113,6 +113,7 @@ def fitCBF(X,y,dim = 4):
         return y.reshape((-1,1))*X_aug
 
     safePoints = np.array([xx for xx, yy in zip(X,y) if yy > 0])
+    
     def CBFCons(state,w,u):
         """
             the CBF condition, at the state
