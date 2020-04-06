@@ -36,4 +36,5 @@ def drawEclips(A,b,c,ax = None):
 
     N = 36
     points = np.array([np.sqrt(-c) * R @ np.array([np.cos(th),np.sin(th)]) + b for th in np.arange(0,(2+1./N)*3.14,2*3.14/N)])
-    ax.plot(points[:,0],points[:,1])
+    ax.plot(points[:,0],points[:,1], "--", label = "CBF boundary")
+    

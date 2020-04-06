@@ -89,15 +89,21 @@ class CBF(BF):
     def dB(self,u):
         return super().dt(self.state,u)
 
+
 class CLF:
-    def __init__(self, state, t, mc2 = 10):
+    def __init__(self, state, t, mc2 = 1000):
         self.state = np.array(state).astype(np.float)
         self.mc2 = mc2
 
-        self.x_des = 2*t -3
-        # self.y_des = np.sin(2*t-3)
-        self.y_des = 0
+        # self.x_des = 2*t - 2.5
+        # # self.y_des = np.sin(2*t-3)
+        # self.y_des = 0
+        # self.x_des = 2*t-3
+        # self.y_des = 2*np.cos(2*t)
+        self.x_des = 0
+        self.y_des = 2*t-2.5
         self.h = lambda x: (x[0]-self.x_des)**2 + (x[1]-self.y_des)**2
+
 
     def __call__(self,u):
         u = np.array(u)
@@ -113,7 +119,7 @@ class CLF:
         return np.array([self.x_des,self.y_des,0,0])
 
 
-def CBF_CLF_QP(state, CBFfun, CLFfun):
+def CBF_CLF_QP(state, CBFfun, CLFfun,badpoints=[]):
     """
         a simple QP posed to have a target velocity toward x direction
         input state
@@ -154,11 +160,14 @@ def CBF_CLF_QP(state, CBFfun, CLFfun):
     options = {"maxiter" : 500, "disp"    : True}
     res = minimize(objective, x0, bounds=bounds,options = options,jac=obj_grad,
                 constraints=constraints, method =  'SLSQP') # 'trust-constr' , "SLSQP"
-    assert(cbf(res.x)>-1e-9)
-    print(cbf(res.x))
-    print(cbf.B(),cbf.dB(res.x))
-    # print(res.x.clip(-MAX_INPUT,MAX_INPUT))
-    return res.x.clip(-MAX_INPUT,MAX_INPUT)
+    # assert(cbf(res.x)>-1e-9)
+    res_x = np.nan_to_num(res.x,0)
+    if(not cbf(res_x)>-1e-9):
+        badpoints.append(state)
+    print(cbf(res_x))
+    print(cbf.B(),cbf.dB(res_x))
+    # print(res_x.clip(-MAX_INPUT,MAX_INPUT))
+    return res_x.clip(-MAX_INPUT,MAX_INPUT),badpoints
 
 
 def CBF_QP_simulation(initState, episode = 10, *cbfarg):
@@ -171,7 +180,7 @@ def CBF_QP_simulation(initState, episode = 10, *cbfarg):
     x = initState
     for i in range(episode):
         try:
-            u = CBF_CLF_QP(x, lambda s: CBF(s, *cbfarg), lambda s:CLF(s, i*dt) )
+            u,bad = CBF_CLF_QP(x, lambda s: CBF(s, *cbfarg), lambda s:CLF(s, i*dt) )
             us.append(u)
             x = sys_A @ x + sys_B @ u
             xs.append(x)
@@ -185,7 +194,7 @@ def CBF_QP_simulation(initState, episode = 10, *cbfarg):
             break
 
     traj = np.array(xs)
-    plt.plot(traj[:,0],traj[:,1],".",label = 'actual traj')
+    plt.plot(traj[:,0],traj[:,1], ".", alpha = 1, label = 'actual traj')
     N = 36
     for c in collisionList:
         plt.plot(c.x + np.sqrt(c.r2)*np.cos(np.arange(0,(2+1./N)*3.14,2*3.14/N)),
@@ -194,10 +203,16 @@ def CBF_QP_simulation(initState, episode = 10, *cbfarg):
     xdes = np.array(xdes)
     ax = plt.gca()
     ax.plot(xdes[:,0],xdes[:,1],".",alpha = 0.2, label = 'command traj')
+    if(len(bad)):
+        bad = np.array(bad)
+        ax.plot(bad[:,0],bad[:,1],"o", label = "Optimization Fail")
     plt.legend()
-    lim = max(np.max(traj[:,0])-np.min(traj[:,0]),6, 2*(np.max(traj[:,1])-np.min(traj[:,1])))
-    plt.xlim((-3.3,-3.3+lim))
-    plt.ylim((-lim/2, lim/2))
+    # lim = max(np.max(traj[:,0])-np.min(traj[:,0]),6, 2*(np.max(traj[:,1])-np.min(traj[:,1])))
+    lim = max(np.max(traj[:,1])-np.min(traj[:,1]),6, 2*(np.max(traj[:,0])-np.min(traj[:,0])))
+    # plt.xlim((-3.3,-3.3+lim))
+    # plt.ylim((-lim/2, lim/2))
+    plt.ylim((-3.3,-3.3+lim))
+    plt.xlim((-lim/2, lim/2))
     # for i in range(episode):
     return ax
 
@@ -205,7 +220,8 @@ def CBF_QP_simulation(initState, episode = 10, *cbfarg):
 
 if __name__ == "__main__":
     # Polyparameter = json.load(open("data/exp1/svmopt.json","r"))
-    Polyparameter = json.load(open("data/tmp/baseline.json","r"))
+    Polyparameter = json.load(open("data/exp1/svm_complete.json","r"))
+    # Polyparameter = json.load(open("data/tmp/baseline.json","r"))
     # Polyparameter = json.load(open("data/exp1/svm_def_aug.json","r"))
     # Polyparameter = json.load(open("data/exp1/svm.json","r"))
     # Polyparameter = json.load(open("data/tmp/svm_def.json","r"))
@@ -233,13 +249,14 @@ if __name__ == "__main__":
     # print(B(np.array([-1,-1])))
 
 
-    # CBF_QP_simulation([-3,0.,0,0],50, # episode
-    #      A,b,c) # c
-    # drawEclips(A,b,c)
-    # plt.show()
-                    
-    print(CBF_CLF_QP([ 7.73014651, 10.        , -2.1482564 , -6.27712458],
-            lambda s:CBF(s,A,b,c), lambda s:CLF(s,0.7) ))
+    CBF_QP_simulation([0,-3.,0,0],50, # episode
+         A,b,c) # c
+    drawEclips(A,b,c)
+    plt.legend()
+    plt.show()
+
+    # print(CBF_CLF_QP([ 7.73014651, 10.        , -2.1482564 , -6.27712458],
+    #         lambda s:CBF(s,A,b,c), lambda s:CLF(s,0.7) ))
 
     # def func(p):
     #     p = np.array(p)

@@ -117,33 +117,20 @@ def fitCBF(X, y, X_c,dim = 4, x0 = None):
 
     def completeCons(w):
         # the points at the boundary of the CBF needs to have a solution that dB > 0
-        if(len(X_c)):
-            print("w:",w)
-            print("a:",w.T @ kernel.jac(X_c[0]) @ Dyn_A @ X_c[0], MAX_INPUT * np.linalg.norm(Dyn_B.T @ kernel.jac(X_c[0]).T @ w,ord=1))
         return np.array([1]+[w.T @ kernel.jac(x) @ Dyn_A @ x  +  
                     MAX_INPUT * np.linalg.norm(Dyn_B.T @ kernel.jac(x).T @ w, ord = 1) for x in X_c])
 
-    if(x0 is not None):
-        x0[-5:-1] *= 0
-        A,b,c = kernel.GetParam(x0)
-        def completeobj(x):
-            print("A: \n",A)
-            print("b:",x.T @ (Dyn_A .T @ A + A @ Dyn_A) @ x, 2 * MAX_INPUT * np.linalg.norm(Dyn_B.T @ A @ x,ord = 1))
-
-            return x.T @ (Dyn_A .T @ A + A @ Dyn_A) @ x + 2 * MAX_INPUT * np.linalg.norm(Dyn_B.T @ A @ x,ord = 1)
-
-        print("OBJ value:" ,[completeobj(x) for x in X_c])
-        print("Con Value:", [completeCons(x0)])
-
-    safePoints = np.array([xx for xx, yy in zip(X,y) if yy > 0])
-
     options = {"maxiter" : 500, "disp"    : True}
-    x0 = np.random.random(int((dim+1)*dim/2 + dim + 1)) if x0 is None else x0
+    lenx0 = int((dim+1)*dim/2 + dim + 1)
+    x0 = np.random.random(lenx0) if x0 is None else x0
     
     constraints = [{'type':'ineq','fun':SVMcons, "jac":SVMjac},
                    {'type':'ineq','fun':completeCons}]
     
-    res = minimize(obj, x0, options = options,jac=grad,
+    bounds = np.ones((lenx0,2)) * np.array([[-1,1]]) * 100
+    bounds[-5:-1,:] *=0
+
+    res = minimize(obj, x0, options = options,jac=grad, bounds=bounds,
                 constraints=constraints, method =  'SLSQP') # 'trust-constr' , "SLSQP"
 
     # print("SVM Constraint:\n", SVMcons(res.x[:len(x0)]))
@@ -157,7 +144,7 @@ def fitCompleteCBF(X,y,dim = 4):
     """
     x0 = None
     X_c = []
-    for i in range(2):
+    for i in range(10):
         A,b,c, x0 = fitCBF(X,y,X_c,dim,x0)
     
         def obj(x):
