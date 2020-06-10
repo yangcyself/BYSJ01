@@ -137,7 +137,7 @@ def fitCBF(X, y, X_c,dim = 4, x0 = None):
     return (*kernel.GetParam(res.x), res.x)
 
 
-def fitCompleteCBF(X,y,dim = 4):
+def fitCompleteCBF(X,y,dim = 20):
     """
         call the `fitCBF` iteratively, each step augment the dataset with some data points 
             that makes the optimization of u hard
@@ -206,6 +206,46 @@ if __name__ == "__main__":
     #     test(np.random.random(4))
 
 
+##### PLOT STYLE
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import sys
+    import matplotlib
+    import seaborn as sns
+    import matplotlib.gridspec as gspec
+
+    matplotlib.rcParams['text.usetex'] = True
+    # matplotlib.rc('font',family='serif', serif=['Palatino'])
+    matplotlib.rc('font',family='times', serif=['Palatino'])
+    plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
+
+    sns.set_style('white')
+    # plt.rcParams['figure.figsize'] = [10, 8]
+    def set_style():
+        sns.set(font='serif', font_scale=1.4)
+        
+    # Make the background white, and specify the
+        # specific font family
+        sns.set_style("white", {
+            "font.family": "serif",
+            "font.weight": "normal",
+            "font.serif": ["Times", "Palatino", "serif"],
+            'axes.facecolor': 'white',
+            'lines.markeredgewidth': 1})
+        
+        plt.rcParams.update({'font.size': 21})
+        plt.rc('axes', titlesize=25)     # fontsize of the axes title
+        plt.rc('axes', labelsize=23)  
+
+    legendParam = {"frameon":True,"framealpha" : 1,"edgecolor":"0","fontsize":23}
+
+    set_style()
+
+#####
+
+
+
     # ### Begin Comment
     # loaddir = "./data/tmp"
     loaddir = "./data/exp1"
@@ -221,12 +261,13 @@ if __name__ == "__main__":
     X += augmentData
     y += [-1] * len(augmentData)
     # A,b,c = SVM_factors(np.array(X),y)
-    A,b,c = fitCompleteCBF(X,y)
+    # A,b,c = fitCompleteCBF(X,y)
     # A,b,c = kernel.GetParam(w,dim=4)
-
+    param = json.load(open("data/exp1/svm_complete.json","r"))
+    A,b,c = np.array(param["A"]),np.array(param["b"]),np.array(param["c"])
     c = float(c)
     print(A,b,c)
-    dumpJson(A,b,c,"data/exp1/svm_complete.json")
+    # dumpJson(A,b,c,"data/exp1/svm_complete.json")
     # dumpJson(A,b,c,"data/exp1/svm_def_aug.json")
     # dumpJson(A,b,c,"data/tmp/svm_def.json")
     
@@ -241,12 +282,15 @@ if __name__ == "__main__":
     # print(posX)
     negX = np.array([x for x,y in zip(X,y) if y ==-1])
     assert(all([func(x) < 1e-9 for x in negX]))
-
-    plt.plot(posX[:,0],posX[:,1], "x", alpha = 0.4, label = "positive points")
-    plt.plot(negX[:,0],negX[:,1], "x", alpha = 0.4, label = "negative points")
+    plt.figure(figsize=(8,8))
+    plt.plot(posX[:,0],posX[:,1], ".", c = "g", alpha = 1, label = "positive points")
+    plt.plot(negX[:,0],negX[:,1], ".", c = "r", alpha = 1, label = "negative points")
 
     drawEclips(A,b,c)
-    plt.legend()
+    plt.legend(**legendParam)
+    plt.xlabel("$p_x$")
+    plt.ylabel("$p_y$")
+    plt.savefig("toyFit.png",bbox_inches = 'tight', pad_inches = 0)
     plt.show()
 
 

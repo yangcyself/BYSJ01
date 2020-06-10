@@ -31,7 +31,7 @@ def drawEclips(A,b,c,ax = None):
     A,b,c = sign * A, sign * b, sign * c
     A_inv = np.linalg.inv(A)
     c = c - 1/4 * b.T @ A_inv @ b
-    b = 1/2 * A_inv @ b
+    b = - 1/2 * A_inv @ b
     R = sqrtm(A_inv)
 
     N = 36

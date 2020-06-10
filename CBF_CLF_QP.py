@@ -97,11 +97,12 @@ class CLF:
 
         # self.x_des = 2*t - 2.5
         # # self.y_des = np.sin(2*t-3)
-        # self.y_des = 0
-        # self.x_des = 2*t-3
+        self.y_des = 0
+        self.x_des = 2*t-3
+        # self.x_des = 12*np.sin(t/4)-3
         # self.y_des = 2*np.cos(2*t)
-        self.x_des = 0
-        self.y_des = 2*t-2.5
+        # self.x_des = 0
+        # self.y_des = 2*t-2.5
         self.h = lambda x: (x[0]-self.x_des)**2 + (x[1]-self.y_des)**2
 
 
@@ -194,15 +195,15 @@ def CBF_QP_simulation(initState, episode = 10, *cbfarg):
             break
 
     traj = np.array(xs)
-    plt.plot(traj[:,0],traj[:,1], ".", alpha = 1, label = 'actual traj')
+    plt.plot(traj[:,0],traj[:,1], ".", alpha = 1, markersize = 14,label = 'actual traj')
     N = 36
     for c in collisionList:
         plt.plot(c.x + np.sqrt(c.r2)*np.cos(np.arange(0,(2+1./N)*3.14,2*3.14/N)),
-                 c.y + np.sqrt(c.r2)*np.sin(np.arange(0,(2+1./N)*3.14,2*3.14/N)), label = 'obstacle')
+                 c.y + np.sqrt(c.r2)*np.sin(np.arange(0,(2+1./N)*3.14,2*3.14/N)), label = 'obstacle',c = "r")
     # print(us)
     xdes = np.array(xdes)
     ax = plt.gca()
-    ax.plot(xdes[:,0],xdes[:,1],".",alpha = 0.2, label = 'command traj')
+    ax.plot(xdes[:,0],xdes[:,1],".",alpha = 0.8, label = 'command traj')
     if(len(bad)):
         bad = np.array(bad)
         ax.plot(bad[:,0],bad[:,1],"o", label = "Optimization Fail")
@@ -248,11 +249,55 @@ if __name__ == "__main__":
     # B = CBF([0.5,0.5,0,0])
     # print(B(np.array([-1,-1])))
 
+##### PLOT STYLE
 
-    CBF_QP_simulation([0,-3.,0,0],50, # episode
+    import matplotlib.pyplot as plt
+    # import numpy as np
+    import sys
+    import matplotlib
+    import seaborn as sns
+    import matplotlib.gridspec as gspec
+
+    matplotlib.rcParams['text.usetex'] = True
+    # matplotlib.rc('font',family='serif', serif=['Palatino'])
+    matplotlib.rc('font',family='times', serif=['Palatino'])
+    plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
+
+    sns.set_style('white')
+    # plt.rcParams['figure.figsize'] = [10, 8]
+    def set_style():
+        sns.set(font='serif', font_scale=1.4)
+        
+    # Make the background white, and specify the
+        # specific font family
+        sns.set_style("white", {
+            "font.family": "serif",
+            "font.weight": "normal",
+            "font.serif": ["Times", "Palatino", "serif"],
+            'axes.facecolor': 'white',
+            'lines.markeredgewidth': 1})
+        
+        plt.rcParams.update({'font.size': 21})
+        plt.rc('axes', titlesize=25)     # fontsize of the axes title
+        plt.rc('axes', labelsize=23)  
+
+    legendParam = {"frameon":True,"framealpha" : 1,"edgecolor":"0","fontsize":23}
+
+    set_style()
+
+#####
+
+    plt.figure(figsize=(8,8))
+
+    CBF_QP_simulation([-3,0,0,0],50, # episode
          A,b,c) # c
     drawEclips(A,b,c)
-    plt.legend()
+    plt.legend(**legendParam)
+    plt.xlabel("$p_x$")
+    plt.ylabel("$p_y$")
+    plt.xlim((-3,3))
+    plt.ylim((-3,3))
+    plt.savefig("toySimulate.png",bbox_inches = 'tight', pad_inches = 0)
     plt.show()
 
     # print(CBF_CLF_QP([ 7.73014651, 10.        , -2.1482564 , -6.27712458],
